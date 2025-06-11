@@ -18,7 +18,7 @@ export const ERROR_MESSAGES = {
   INVALID_JSON: 'Invalid JSON in request body',
   MISSING_BODY_SIGNUP: 'Request body is required for signup',
   MISSING_BODY_LOGIN: 'Request body is required for login',
-  MISSING_CREDENTIALS: 'Username and password are required',
+  MISSING_CREDENTIALS: 'Username and password are required TS',
   ROUTE_NOT_FOUND: 'Route not found or method not allowed',
   INTERNAL_ERROR: 'Internal server error',
   SOMETHING_WRONG: 'Something went wrong'

@@ -23,18 +23,19 @@ export class LambdaStack extends cdk.Stack {
     this.stage = props.stage;
     // this.environmentConfig = getEnvironmentConfig(this, this.stage);
     this.memorySize = 4096;  
-    this.provisionedConcurrentExecutions = this.stage === "PROD" ? 5 : 0; 
+    this.provisionedConcurrentExecutions = this.stage === "PROD" ? 5 : 0;
 
     console.log(`Deploying LambdaStack for stage: ${this.stage}`);
     // console.log(`Setting environment variables: ${JSON.stringify(this.environmentConfig)}`);
+
+    const adminLambdaRole = this.createAuthLambdaRole();
  
-    const adminLambdaRole = this.createIrisEduAdminLambdaRole();
-    this.authLambda = this.createIrisEduAuthLambdaFunction( adminLambdaRole);
+    this.authLambda = this.createAuthLambdaFunction( adminLambdaRole);
 
     }
 
-  private createIrisEduAdminLambdaRole(): iam.Role {
-    const role = new iam.Role(this, `IrisEduAdminLambdaRole-${this.stage}`, {
+    private createAuthLambdaRole(): iam.Role {
+    const role = new iam.Role(this, `AuthLambdaRole-${this.stage}`, {
       assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
       managedPolicies: [
         iam.ManagedPolicy.fromAwsManagedPolicyName("service-role/AWSLambdaBasicExecutionRole"),
@@ -54,10 +55,11 @@ export class LambdaStack extends cdk.Stack {
     return role;
   }
 
-  private createIrisEduAuthLambdaFunction( lambdaRole: iam.Role):  any {
+
+  private createAuthLambdaFunction( lambdaRole: iam.Role):  any {
 
      const authFunction = new lambda.Function(this, 'AuthFunction', {
-      functionName: LAMBDA_CONFIG.AUTH_FUNCTION_NAME,
+      functionName: `${LAMBDA_CONFIG.AUTH_FUNCTION_NAME}-${this.stage}`,
       runtime: lambda.Runtime.NODEJS_18_X,
       handler: 'index.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, '../../src/lambdas/auth')),

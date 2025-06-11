@@ -1,5 +1,5 @@
 export const LAMBDA_CONFIG = {
-  AUTH_FUNCTION_NAME: 'adify-auth-service',
+  AUTH_FUNCTION_NAME: 'AuthLambda',
   RUNTIME: 'nodejs18.x',
   TIMEOUT_SECONDS: 30,
   MEMORY_SIZE_MB: 512,

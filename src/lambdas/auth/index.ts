@@ -5,7 +5,7 @@ import { errorHandler } from './middleware/errorHandler';
  
 
 export const handler: APIGatewayProxyHandler = async (event:any, context:any) => {
-  console.log(`Received event: ${JSON.stringify(event, null, 2)}`);
+  console.log(`Received event with TS file : ${JSON.stringify(event, null, 2)}`);
   
   try {
     return await routeHandler(event, context);

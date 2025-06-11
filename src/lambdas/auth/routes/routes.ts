@@ -25,7 +25,7 @@ export async function routeHandler(
   if (methodHandlers) {
     const targetHandler = methodHandlers[path];
     if (targetHandler) {
-      console.log(`Found handler for route: ${httpMethod} ${path}`);
+      console.log(`Found handler for route:TS  ${httpMethod} ${path}`);
       return await targetHandler(event, context);
     }
   }
