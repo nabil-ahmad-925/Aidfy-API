@@ -60,7 +60,7 @@ export class LambdaStack extends cdk.Stack {
       functionName: LAMBDA_CONFIG.AUTH_FUNCTION_NAME,
       runtime: lambda.Runtime.NODEJS_18_X,
       handler: 'index.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../src/lambdas/auth-service')),
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../src/lambdas/auth')),
       role:lambdaRole,
       timeout: cdk.Duration.seconds(LAMBDA_CONFIG.TIMEOUT_SECONDS),
       memorySize: LAMBDA_CONFIG.MEMORY_SIZE_MB,

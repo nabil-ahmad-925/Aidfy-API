@@ -1,162 +1,164 @@
-// import * as cdk from 'aws-cdk-lib';
-// import * as apigateway from 'aws-cdk-lib/aws-apigateway';
-// import * as lambda from 'aws-cdk-lib/aws-lambda';
-// import { Construct } from 'constructs';
-// import { API_CONFIG } from '../shared/constants';
+import * as cdk from 'aws-cdk-lib';
+import * as apigateway from 'aws-cdk-lib/aws-apigateway';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as iam from 'aws-cdk-lib/aws-iam';
+import { Construct } from 'constructs';
+import { API_CONFIG, StageName } from '../shared/constants';
 
-// interface ApiGatewayStackProps extends cdk.StackProps {
-//   authFunction: lambda.Function;
-// }
+interface ApiGatewayStackProps extends cdk.StackProps {
+  stage: StageName;
+  authFunction: lambda.Function;
+}
 
-// export class ApiGatewayStack extends cdk.Stack {
-//   public readonly api: apigateway.RestApi;
+// Custom Lambda Integration class to control permissions
+class LambdaIntegrationNoPermission extends apigateway.LambdaIntegration {
+  constructor(handler: lambda.IFunction, options?: apigateway.LambdaIntegrationOptions) {
+    super(handler, options);
+  }
 
-//   constructor(scope: Construct, id: string, props: ApiGatewayStackProps) {
-//     super(scope, id, props);
+  bind(method: apigateway.Method): apigateway.IntegrationConfig {
+    const integrationConfig = super.bind(method);
 
-//     const { authFunction } = props;
+    // Remove any auto-generated cfn permissions
+    const permissions = method.node.children.filter(c => c instanceof lambda.CfnPermission);
+    console.log(permissions);
+    permissions.forEach(p => method.node.tryRemoveChild(p.node.id));
+    return integrationConfig;
+  }
+}
 
-//     // Create the REST API
-//     this.api = new apigateway.RestApi(this, 'AdifyApi', {
-//       restApiName: API_CONFIG.API_NAME,
-//       description: 'Adify API Gateway',
-//       defaultCorsPreflightOptions: {
-//         allowOrigins: API_CONFIG.CORS_ORIGINS,
-//         allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-//         allowHeaders: [
-//           'Content-Type',
-//           'Authorization',
-//           'X-Amz-Date',
-//           'X-Api-Key',
-//           'X-Amz-Security-Token',
-//         ],
-//       },
-//       deployOptions: {
-//         stageName: API_CONFIG.STAGE,
-//         throttle: {
-//           rateLimit: 1000,
-//           burstLimit: 2000,
-//         },
-//       },
-//     });
+export class ApiGatewayStack extends cdk.Stack {
+  public readonly api: apigateway.RestApi;
+  private readonly stage: StageName;
 
-//     // Create Lambda integration
-//     const authIntegration = new apigateway.LambdaIntegration(authFunction, {
-//       requestTemplates: { 'application/json': '{ "statusCode": "200" }' },
-//       proxy: true,
-//     });
+  // Track resources that have been created to prevent duplicates
+  private readonly resourcePathMap = new Map<string, apigateway.IResource>();
 
-//     // Create /auth resource
-//     const authResource = this.api.root.addResource('auth');
+  constructor(scope: Construct, id: string, props: ApiGatewayStackProps) {
+    super(scope, id, props);
 
-//     // Add signup endpoint: POST /auth/signup
-//     const signupResource = authResource.addResource('signup');
-//     signupResource.addMethod('POST', authIntegration, {
-//       methodResponses: [
-//         {
-//           statusCode: '201',
-//           responseHeaders: {
-//             'Access-Control-Allow-Origin': true,
-//             'Access-Control-Allow-Headers': true,
-//           },
-//         },
-//         {
-//           statusCode: '400',
-//           responseHeaders: {
-//             'Access-Control-Allow-Origin': true,
-//             'Access-Control-Allow-Headers': true,
-//           },
-//         },
-//         {
-//           statusCode: '500',
-//           responseHeaders: {
-//             'Access-Control-Allow-Origin': true,
-//             'Access-Control-Allow-Headers': true,
-//           },
-//         },
-//       ],
-//     });
+    this.stage = props.stage;
+    const { authFunction } = props;
 
-//     // Add login endpoint: POST /auth/login
-//     const loginResource = authResource.addResource('login');
-//     loginResource.addMethod('POST', authIntegration, {
-//       methodResponses: [
-//         {
-//           statusCode: '200',
-//           responseHeaders: {
-//             'Access-Control-Allow-Origin': true,
-//             'Access-Control-Allow-Headers': true,
-//           },
-//         },
-//         {
-//           statusCode: '401',
-//           responseHeaders: {
-//             'Access-Control-Allow-Origin': true,
-//             'Access-Control-Allow-Headers': true,
-//           },
-//         },
-//         {
-//           statusCode: '500',
-//           responseHeaders: {
-//             'Access-Control-Allow-Origin': true,
-//             'Access-Control-Allow-Headers': true,
-//           },
-//         },
-//       ],
-//     });
+    console.log(`Deploying ApiGatewayStack for stage: ${this.stage}`);
 
-//     // Add forgot password endpoint: POST /auth/forgot-password
-//     const forgotPasswordResource = authResource.addResource('forgot-password');
-//     forgotPasswordResource.addMethod('POST', authIntegration, {
-//       methodResponses: [
-//         {
-//           statusCode: '200',
-//           responseHeaders: {
-//             'Access-Control-Allow-Origin': true,
-//             'Access-Control-Allow-Headers': true,
-//           },
-//         },
-//         {
-//           statusCode: '400',
-//           responseHeaders: {
-//             'Access-Control-Allow-Origin': true,
-//             'Access-Control-Allow-Headers': true,
-//           },
-//         },
-//         {
-//           statusCode: '500',
-//           responseHeaders: {
-//             'Access-Control-Allow-Origin': true,
-//             'Access-Control-Allow-Headers': true,
-//           },
-//         },
-//       ],
-//     });
+    // Create the REST API
+    this.api = new apigateway.RestApi(this, `AdifyApi-${this.stage}`, {
+      restApiName: `${API_CONFIG.API_NAME}-${this.stage.toLowerCase()}`,
+      description: `Adify API Gateway - ${this.stage}`,
+      deployOptions: {
+        stageName: API_CONFIG.STAGE
+      },
+      binaryMediaTypes: ["multipart/form-data", "application/pdf", "application/octet-stream"]
+    });
 
-//     // Grant API Gateway permission to invoke the Lambda function
-//     authFunction.grantInvoke(new cdk.aws_iam.ServicePrincipal('apigateway.amazonaws.com'));
+    // Store the root resource in our map
+    this.resourcePathMap.set("/", this.api.root);
 
-//     // Output the API URL
-//     new cdk.CfnOutput(this, 'ApiUrl', {
-//       value: this.api.url,
-//       description: 'URL of the API Gateway',
-//       exportName: 'ApiUrl',
-//     });
+    // Output the API Gateway Rest API ID
+    new cdk.CfnOutput(this, `ApiGatewayRestApiId-${this.stage}`, {
+      value: this.api.restApiId,
+      description: `API Gateway Rest API ID - ${this.stage}`,
+      exportName: `AdifyApiGatewayId-${this.stage}`,
+    });
 
-//     // Output individual endpoint URLs for convenience
-//     new cdk.CfnOutput(this, 'SignupEndpoint', {
-//       value: `${this.api.url}auth/signup`,
-//       description: 'Signup endpoint URL',
-//     });
+    // Create auth routes
+    this.createAuthRoutes(authFunction);
 
-//     new cdk.CfnOutput(this, 'LoginEndpoint', {
-//       value: `${this.api.url}auth/login`,
-//       description: 'Login endpoint URL',
-//     });
+    // Grant API Gateway permission to invoke the Lambda function using CfnPermission
+    new lambda.CfnPermission(this, `AuthLambdaInvokePermission-${this.stage}`, {
+      functionName: authFunction.functionName,
+      principal: 'apigateway.amazonaws.com',
+      action: 'lambda:InvokeFunction',
+      sourceArn: this.api.arnForExecuteApi('*'),
+    });
 
-//     new cdk.CfnOutput(this, 'ForgotPasswordEndpoint', {
-//       value: `${this.api.url}auth/forgot-password`,
-//       description: 'Forgot password endpoint URL',
-//     });
-//   }
-// }
+    // Output the API URL
+    new cdk.CfnOutput(this, `ApiUrl-${this.stage}`, {
+      value: this.api.url,
+      description: `URL of the API Gateway - ${this.stage}`,
+      exportName: `AdifyApiUrl-${this.stage}`,
+    });
+
+    // Output individual endpoint URLs for convenience
+    new cdk.CfnOutput(this, `SignupEndpoint-${this.stage}`, {
+      value: `${this.api.url}auth/v1/signup`,
+      description: `Signup endpoint URL - ${this.stage}`,
+      exportName: `AdifySignupEndpoint-${this.stage}`,
+    });
+
+    new cdk.CfnOutput(this, `LoginEndpoint-${this.stage}`, {
+      value: `${this.api.url}auth/v1/login`,
+      description: `Login endpoint URL - ${this.stage}`,
+      exportName: `AdifyLoginEndpoint-${this.stage}`,
+    });
+
+    console.log(`API Gateway stack created successfully for stage: ${this.stage}`);
+  }
+
+  // Get an existing resource or create a new one with CORS
+  private getOrCreateResource(parent: apigateway.IResource, pathPart: string): apigateway.IResource {
+    const fullPath = parent.path === "/"
+      ? `/${pathPart}`
+      : `${parent.path}/${pathPart}`;
+
+    // Check if we've already created this resource
+    if (this.resourcePathMap.has(fullPath)) {
+      return this.resourcePathMap.get(fullPath)!;
+    }
+
+    // Create the resource
+    const resource = parent.addResource(pathPart);
+
+    // Add CORS options manually
+    this.addCorsOptions(resource);
+
+    // Store the resource in our map
+    this.resourcePathMap.set(fullPath, resource);
+
+    return resource;
+  }
+
+  private addCorsOptions(resource: apigateway.IResource) {
+    resource.addMethod('OPTIONS', new apigateway.MockIntegration({
+      integrationResponses: [{
+        statusCode: '200',
+        responseParameters: {
+          'method.response.header.Access-Control-Allow-Headers': "'Content-Type,Authorization,x-refresh-token'",
+          'method.response.header.Access-Control-Allow-Origin': "'*'",
+          'method.response.header.Access-Control-Allow-Methods': "'OPTIONS,GET,PUT,POST,DELETE'",
+        },
+      }],
+      passthroughBehavior: apigateway.PassthroughBehavior.NEVER,
+      requestTemplates: {
+        'application/json': '{"statusCode": 200}'
+      }
+    }), {
+      methodResponses: [{
+        statusCode: '200',
+        responseParameters: {
+          'method.response.header.Access-Control-Allow-Headers': true,
+          'method.response.header.Access-Control-Allow-Origin': true,
+          'method.response.header.Access-Control-Allow-Methods': true,
+        },
+      }],
+    });
+  }
+
+  private createAuthRoutes(authFunction: lambda.Function): void {
+    // Use the custom integration to control permissions
+    const integration = new LambdaIntegrationNoPermission(authFunction, { proxy: true });
+
+    // Create auth resource structure: /auth/v1/
+    const authResource = this.getOrCreateResource(this.api.root, "auth");
+    const versionedAuthApi = this.getOrCreateResource(authResource, "v1");
+
+    // Create signup endpoint: POST /auth/v1/signup
+    const signupResource = this.getOrCreateResource(versionedAuthApi, "signup");
+    signupResource.addMethod('POST', integration );
+
+    // Create login endpoint: POST /auth/v1/login
+    const loginResource = this.getOrCreateResource(versionedAuthApi, "login");
+    loginResource.addMethod('POST', integration );
+  }
+}
